@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Trading Interface</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        body, html {
+            font-family: 'Gilroy', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #1E1E1E;
+            color: #FFFFFF;
+            height: 100%;
+            overflow: hidden;
+        }
+        .container {
+            display: flex;
+            width: 100%;
+            height: 100vh;
+        }
+        .sidebar {
+            width: 281px;
+            background-color: #252525;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            border-radius: 15px;
+            margin: 10px;
+        }
+        .logo {
+            width: 111px;
+            height: 51px;
+            margin-bottom: 20px;
+        }
+        .sidebar-menu {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .sidebar-item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            border-radius: 10px;
+            cursor: pointer;
+            opacity: 0.9;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        .sidebar-item:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        .sidebar-item.active {
+            background: linear-gradient(0deg, #F4AB0B 0%, #F4AB0B 100%), linear-gradient(0deg, #F4970B 0%, #F4970B 100%);
+        }
+        .sidebar-item-icon {
+            margin-right: 15px;
+            width: 24px;
+            height: 24px;
+            background-color: #F4AB0B;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .main-content {
+            flex: 1;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+        }
+        .header {
+            background-color: #252525;
+            border-radius: 15px;
+            padding: 15px;
+            margin-bottom: 10px;
+        }
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .pair-info {
+            display: flex;
+            align-items: center;
+        }
+        .pair-icon {
+            width: 30px;
+            height: 30px;
+            background-color: #F4AB0B;
+            border-radius: 50%;
+            margin-right: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .pair-name {
+            font-size: 20px;
+            font-weight: 500;
+        }
+        .header-stats {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+        }
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+        }
+        .stat-label {
+            color: #B3B3B3;
+        }
+        .chart-container {
+            flex: 1;
+            background-color: #252525;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 10px;
+            display: flex;
+            flex-direction: column;
+        }
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        .chart-title {
+            font-size: 15px;
+            font-weight: 500;
+        }
+        .chart-stats {
+            display: flex;
+            gap: 15px;
+            font-size: 9px;
+            color: #A8A8A8;
+        }
+        .chart-content {
+            flex: 1;
+            background-color: #1E1E1E;
+            border-radius: 10px;
+        }
+        .order-book {
+            width: 356px;
+            background-color: #252525;
+            border-radius: 15px;
+            padding: 10px;
+            margin-left: 10px;
+        }
+        .tab-container {
+            display: flex;
+            margin-bottom: 10px;
+        }
+        .tab {
+            flex: 1;
+            padding: 10px;
+            text-align: center;
+            background-color: #212121;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .tab.active {
+            background-color: #2F2F2F;
+        }
+        .order-list {
+            height: 400px;
+            overflow-y: auto;
+        }
+        .order-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            font-size: 11px;
+        }
+        .buy {
+            color: #00CEA9;
+        }
+        .sell {
+            color: #FF5166;
+        }
+        .order-summary {
+            background-color: #2F2F2F;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        .trade-form {
+            background-color: #252525;
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 10px;
+        }
+        .trade-form h3 {
+            margin-top: 0;
+        }
+        .trade-form input, .trade-form button {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            border: none;
+        }
+        .trade-form button {
+            background-color: #F4AB0B;
+            color: #1E1E1E;
+            cursor: pointer;
+        }
+        .trade-form button:hover {
+            background-color: #F4970B;
+        }
+        .auth-form {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #252525;
+            padding: 20px;
+            border-radius: 15px;
+            z-index: 1000;
+        }
+        .auth-form input, .auth-form button {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            border: none;
+        }
+        .auth-form button {
+            background-color: #F4AB0B;
+            color: #1E1E1E;
+            cursor: pointer;
+        }
+        .auth-form button:hover {
+            background-color: #F4970B;
+        }
+        .account-info {
+            background-color: #252525;
+            border-radius: 15px;
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 13px;
+        }
+        @media (max-width: 1200px) {
+            .container {
+                flex-direction: column;
+            }
+            .sidebar {
+                width: auto;
+                flex-direction: row;
+                justify-content: space-between;
+                padding: 10px;
+            }
+            .sidebar-menu {
+                flex-direction: row;
+                overflow-x: auto;
+            }
+            .main-content {
+                flex-direction: column;
+            }
+            .chart-container, .order-book {
+                width: 100%;
+                margin-left: 0;
+                margin-bottom: 10px;
+            }
+        }
+        @media (max-width: 768px) {
+            .header-stats {
+                flex-wrap: wrap;
+            }
+            .stat-item {
+                width: 50%;
+                margin-bottom: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <img src="https://via.placeholder.com/111x51" alt="Logo" class="logo">
+            <div class="sidebar-menu">
+                <div class="sidebar-item active"><div class="sidebar-item-icon"><i class="fas fa-chart-line"></i></div>Markets</div>
+                <div class="sidebar-item"><div class="sidebar-item-icon"><i class="fas fa-wallet"></i></div>Wallet</div>
+                <div class="sidebar-item"><div class="sidebar-item-icon"><i class="fas fa-coins"></i></div>Earn</div>
+                <div class="sidebar-item"><div class="sidebar-item-icon"><i class="fas fa-history"></i></div>History</div>
+                <div class="sidebar-item"><div class="sidebar-item-icon"><i class="fas fa-exchange-alt"></i></div>Exchange</div>
+                <div class="sidebar-item"><div class="sidebar-item-icon"><i class="fas fa-cog"></i></div>Setting</div>
+                <div class="sidebar-item"><div class="sidebar-item-icon"><i class="fas fa-user-friends"></i></div>Referral</div>
+                <div class="sidebar-item"><div class="sidebar-item-icon"><i class="fas fa-user"></i></div>Username</div>
+            </div>
+        </div>
+        <div class="main-content">
+            <div class="header">
+                <div class="header-top">
+                    <div class="pair-info">
+                        <div class="pair-icon"><i class="fab fa-bitcoin"></i></div>
+                        <div class="pair-name">DAI/BTC</div>
+                    </div>
+                    <div class="chart-icon"><i class="fas fa-chart-bar"></i></div>
+                </div>
+                <div class="header-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">Last Price</span>
+                        <span class="stat-value buy" id="last-price">28,255.8 USD</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">24h Change</span>
+                        <span class="stat-value sell" id="24h-change">-0.19%</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">24h High</span>
+                        <span class="stat-value" id="24h-high">28,295.4 USD</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">24h Low</span>
+                        <span class="stat-value" id="24h-low">27,888.0 USD</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">24h Volume</span>
+                        <span class="stat-value" id="24h-volume">8.95k BTC</span>
+                    </div>
+                </div>
+            </div>
+            <div style="display: flex;">
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <div class="chart-title">Nighttrader chart</div>
+                        <div class="chart-stats">
+                            <span id="chart-open">O: 651912.19</span>
+                            <span id="chart-high">H: 651912.19</span>
+                            <span id="chart-low">L: 651912.19</span>
+                            <span id="chart-close">C: 651912.19</span>
+                            <span id="chart-change">-150151.64 (-3.165%)</span>
+                        </div>
+                    </div>
+                    <div class="chart-content" id="chart"></div>
+                </div>
+                <div class="order-book">
+                    <div class="tab-container">
+                        <div class="tab active" data-tab="order-book">Order Book</div>
+                        <div class="tab" data-tab="recent-trades">Recent Trades</div>
+                    </div>
+                    <div class="order-list" id="order-book-list">
+                        <!-- Order book items will be inserted here -->
+                    </div>
+                    <div class="order-list" id="recent-trades-list" style="display: none;">
+                        <!-- Recent trades will be inserted here -->
+                    </div>
+                    <div class="order-summary">
+                        <div id="current-price">$31164.55</div>
+                        <div class="buy" id="current-amount">31,164.55 USDT</div>
+                    </div>
+                </div>
+            </div>
+            <div class="trade-form">
+                <h3>Place Order</h3>
+                <input type="number" id="amount" placeholder="Amount">
+                <input type="number" id="price" placeholder="Price">
+                <button id="buy-btn">Buy</button>
+                <button id="sell-btn">Sell</button>
+            </div>
+            <div class="account-info">
+                <h3>Account Balance</h3>
+                <div id="account-balance">Loading...</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="auth-form" id="auth-form" style="display: none;">
+        <h3>Login</h3>
+        <input type="text" id="username" placeholder="Username">
+        <input type="password" id="password" placeholder="Password">
+        <button id="login-btn">Login</button>
+        <button id="register-btn">Register</button>
+    </div>
+
+    <script>
+        // Simulated user authentication
+        let isLoggedIn = false;
+        let accountBalance = 0;
+
+        // Show auth form on load
+        document.getElementById('auth-form').style.display = 'block';
+
+        // Login functionality
+        document.getElementById('login-btn').addEventListener('click', () => {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            // In a real app, you would validate credentials against a backend
+            if (username && password) {
+                isLoggedIn = true;
+                accountBalance = 10000; // Simulated initial balance
+                document.getElementById('auth-form').style.display = 'none';
+                updateAccountInfo();
+            }
+        });
+
+        // Register functionality (simplified)
+        document.getElementById('register-btn').addEventListener('click', () => {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            // In a real app, you would send this data to a backend
+            if (username && password) {
+                isLoggedIn = true;
+                accountBalance = 10000; // Simulated initial balance
+                document.getElementById('auth-form').style.display = 'none';
+                updateAccountInfo();
+            }
+        });
+
+        function updateAccountInfo() {
+            document.getElementById('account-balance').textContent = `$${accountBalance.toFixed(2)}`;
+        }
+
+        // Initialize chart
+        const chart = LightweightCharts.createChart(document.getElementById('chart'), {
+            width: 600,
+            height: 300,
+            layout: {
+                background: { type: 'solid', color: '#1E1E1E' },
+                textColor: '#d1d4dc',
+            },
+            grid: {
+                vertLines: { color: '#2B2B43' },
+                horzLines: { color: '#363C4E' },
+            },
+            crosshair: {
+                mode: LightweightCharts.CrosshairMode.Normal,
+            },
+            rightPriceScale: {
+                borderColor: '#485c7b',
+            },
+            timeScale: {
+                borderColor: '#485c7b',
+            },
+        });
+
+        const candleSeries = chart.addCandlestickSeries({
+            upColor: '#4bffb5',
+            downColor: '#ff4976',
+            borderDownColor: '#ff4976',
+            borderUpColor: '#4bffb5',
+            wickDownColor: '#838ca1',
+            wickUpColor: '#838ca1',
+        });
+
+        // Simulated real-time data
+        function generateCandlestickData() {
+            const data = [];
+            let time = new Date(Date.UTC(2018, 0, 1, 0, 0, 0, 0));
+            let open = 10000;
+            let high = 10000;
+            let low = 10000;
+            let close = 10000;
+
+            for (let i = 0; i < 500; i++) {
+                const nextTime = new Date(time.getTime() + 86400000);
+                const r = Math.random();
+                close = close + r * 500 - 250;
+                open = close + r * 200 - 100;
+                high = Math.max(open, close) + r * 100;
+                low = Math.min(open, close) - r * 100;
+
+                data.push({
+                    time: time.getTime() / 1000,
+                    open: open,
+                    high: high,
+                    low: low,
+                    close: close,
+                });
+
+                time = nextTime;
+            }
+
+            return data;
+        }
+
+        const candlestickData = generateCandlestickData();
+        candleSeries.setData(candlestickData);
+
+        // Simulated order book data
+        function generateOrderBook() {
+            const orderBookList = document.getElementById('order-book-list');
+            orderBookList.innerHTML = '';
+            
+            for (let i = 0; i < 20; i++) {
+                const price = (Math.random() * 1000 + 30000).toFixed(2);
+                const amount = (Math.random() * 10).toFixed(4);
+                const total = (price * amount).toFixed(4);
+                
+                const orderItem = document.createElement('div');
+                orderItem.classList.add('order-item');
+                orderItem.innerHTML = `
+                    <span class="${i < 10 ? 'sell' : 'buy'}">${price}</span>
+                    <span>${amount}</span>
+                    <span>${total}</span>
+                `;
+                orderBookList.appendChild(orderItem);
+            }
+        }
+
+        // Simulated recent trades
+        function generateRecentTrades() {
+            const recentTradesList = document.getElementById('recent-trades-list');
+            recentTradesList.innerHTML = '';
+            
+            for (let i = 0; i < 20; i++) {
+                const price = (Math.random() * 1000 + 30000).toFixed(2);
+                const amount = (Math.random() * 10).toFixed(4);
+                const time = new Date().toLocaleTimeString();
+                
+                const tradeItem = document.createElement('div');
+                tradeItem.classList.add('order-item');
+                tradeItem.innerHTML = `
+                    <span class="${Math.random() > 0.5 ? 'buy' : 'sell'}">${price}</span>
+                    <span>${amount}</span>
+                    <span>${time}</span>
+                `;
+                recentTradesList.appendChild(tradeItem);
+            }
+        }
+
+        generateOrderBook();
+        generateRecentTrades();
+
+        // Tab functionality
+        const tabs = document.querySelectorAll('.tab');
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                tabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                if (tab.dataset.tab === 'order-book') {
+                    document.getElementById('order-book-list').style.display = 'block';
+                    document.getElementById('recent-trades-list').style.display = 'none';
+                } else {
+                    document.getElementById('order-book-list').style.display = 'none';
+                    document.getElementById('recent-trades-list').style.display = 'block';
+                }
+            });
+        });
+
+        // Sidebar item functionality
+        const sidebarItems = document.querySelectorAll('.sidebar-item');
+        sidebarItems.forEach(item => {
+            item.addEventListener('click', () => {
+                sidebarItems.forEach(i => i.classList.remove('active'));
+                item.classList.add('active');
+                // Here you would typically load different content based on the selected item
+            });
+        });
+
+        // Buy/Sell functionality
+        document.getElementById('buy-btn').addEventListener('click', () => {
+            if (!isLoggedIn) {
+                alert('Please log in to trade.');
+                return;
+            }
+            const amount = parseFloat(document.getElementById('amount').value);
+            const price = parseFloat(document.getElementById('price').value);
+            if (amount && price) {
+                const total = amount * price;
+                if (total <= accountBalance) {
+                    accountBalance -= total;
+                    updateAccountInfo();
+                    alert(`Bought ${amount} BTC at $${price}`);
+                } else {
+                    alert('Insufficient funds');
+                }
+            }
+        });
+
+        document.getElementById('sell-btn').addEventListener('click', () => {
+            if (!isLoggedIn) {
+                alert('Please log in to trade.');
+                return;
+            }
+            const amount = parseFloat(document.getElementById('amount').value);
+            const price = parseFloat(document.getElementById('price').value);
+            if (amount && price) {
+                const total = amount * price;
+                accountBalance += total;
+                updateAccountInfo();
+                alert(`Sold ${amount} BTC at $${price}`);
+            }
+        });
+
+        // Simulated real-time updates
+        setInterval(() => {
+            // Update chart
+            const lastCandle = candlestickData[candlestickData.length - 1];
+            const newCandle = {
+                time: lastCandle.time + 86400,
+                open: lastCandle.close,
+                high: lastCandle.close + Math.random() * 100,
+                low: lastCandle.close - Math.random() * 100,
+                close: lastCandle.close + Math.random() * 200 - 100
+            };
+            candlestickData.push(newCandle);
+            candlestickData.shift();
+            candleSeries.setData(candlestickData);
+
+            // Update stats
+            document.getElementById('last-price').textContent = `$${newCandle.close.toFixed(2)}`;
+            document.getElementById('24h-change').textContent = `${((newCandle.close - lastCandle.close) / lastCandle.close * 100).toFixed(2)}%`;
+            document.getElementById('24h-high').textContent = `$${Math.max(...candlestickData.slice(-24).map(c => c.high)).toFixed(2)}`;
+            document.getElementById('24h-low').textContent = `$${Math.min(...candlestickData.slice(-24).map(c => c.low)).toFixed(2)}`;
+            document.getElementById('24h-volume').textContent = `${(Math.random() * 1000).toFixed(2)}k BTC`;
+
+            // Update chart stats
+            document.getElementById('chart-open').textContent = `O: ${newCandle.open.toFixed(2)}`;
+            document.getElementById('chart-high').textContent = `H: ${newCandle.high.toFixed(2)}`;
+            document.getElementById('chart-low').textContent = `L: ${newCandle.low.toFixed(2)}`;
+            document.getElementById('chart-close').textContent = `C: ${newCandle.close.toFixed(2)}`;
+            document.getElementById('chart-change').textContent = `${(newCandle.close - newCandle.open).toFixed(2)} (${((newCandle.close - newCandle.open) / newCandle.open * 100).toFixed(2)}%)`;
+
+            // Update order book and recent trades
+            generateOrderBook();
+            generateRecentTrades();
+
+            // Update current price in order summary
+            document.getElementById('current-price').textContent = `$${newCandle.close.toFixed(2)}`;
+            document.getElementById('current-amount').textContent = `${(newCandle.close * 0.1).toFixed(2)} USDT`;
+        }, 5000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NightTrader</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/technicalindicators/dist/technicalindicators.min.js"></script>
+    <script src="js/nighttrader.js" defer></script>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <img src="images/nighttrader.white.svg" alt="NightTrader Logo" class="logo">
+            <div class="sidebar-menu">
+                <div class="sidebar-item active"><div class="sidebar-item-icon"><i class="fas fa-chart-line"></i></div>Markets</div>
+                <div class="sidebar-item"><div class="sidebar-item-icon"><i class="fas fa-wallet"></i></div>Wallet</div>
+                <div class="sidebar-item"><div class="sidebar-item-icon"><i class="fas fa-coins"></i></div>Earn</div>
+                <div class="sidebar-item"><div class="sidebar-item-icon"><i class="fas fa-history"></i></div>History</div>
+                <div class="sidebar-item"><div class="sidebar-item-icon"><i class="fas fa-exchange-alt"></i></div>Exchange</div>
+                <div class="sidebar-item"><div class="sidebar-item-icon"><i class="fas fa-cog"></i></div>Setting</div>
+                <div class="sidebar-item"><div class="sidebar-item-icon"><i class="fas fa-user-friends"></i></div>Referral</div>
+                <div class="sidebar-item"><div class="sidebar-item-icon"><i class="fas fa-user"></i></div>Username</div>
+            </div>
+        </div>
+        <div class="main-content">
+            <!-- Rest of the content remains unchanged -->
+        </div>
+    </div>
+
+    <div class="auth-form" id="auth-form" style="display: none;">
+        <button id="close-auth-btn" class="close-btn">&times;</button>
+        <h3>Login</h3>
+        <input type="text" id="username" placeholder="Username">
+        <input type="password" id="password" placeholder="Password">
+        <button id="login-btn">Login</button>
+        <button id="register-btn">Register</button>
+    </div>
+
+    <div class="auth-form" id="two-factor-form" style="display: none;">
+        <h3>Two-Factor Authentication</h3>
+        <input type="text" id="two-factor-token" placeholder="Enter 2FA Token">
+        <button id="verify-2fa-btn">Verify</button>
+    </div>
+
+    <div class="auth-form" id="setup-2fa-form" style="display: none;">
+        <h3>Setup Two-Factor Authentication</h3>
+        <p>Scan the QR code with your authenticator app:</p>
+        <img id="qr-code" src="" alt="QR Code">
+        <p>Or enter this code manually: <span id="secret-key"></span></p>
+        <input type="text" id="setup-2fa-token" placeholder="Enter 2FA Token">
+        <button id="setup-2fa-btn">Verify and Enable 2FA</button>
+    </div>
+</body>
+</html>

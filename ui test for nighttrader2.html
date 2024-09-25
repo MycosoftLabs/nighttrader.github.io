@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Trading Platform</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/technicalindicators/dist/technicalindicators.min.js"></script>
+    <style>
+        /* (Previous CSS styles remain unchanged) */
+        .order-book-visualization {
+            display: flex;
+            justify-content: space-between;
+            height: 300px;
+            margin-top: 20px;
+        }
+        .order-book-side {
+            width: 48%;
+            background-color: #2a2a2a;
+            border-radius: 5px;
+            padding: 10px;
+            overflow-y: auto;
+        }
+        .order-book-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+        .order-book-item-fill {
+            height: 4px;
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- (Previous HTML structure remains unchanged) -->
+        <div class="order-book-visualization">
+            <div class="order-book-side" id="bids"></div>
+            <div class="order-book-side" id="asks"></div>
+        </div>
+    </div>
+
+    <div class="auth-form" id="auth-form">
+        <h3>Login</h3>
+        <input type="text" id="username" placeholder="Username">
+        <input type="password" id="password" placeholder="Password">
+        <button id="login-btn">Login</button>
+        <button id="register-btn">Register</button>
+    </div>
+
+    <div class="auth-form" id="two-factor-form" style="display: none;">
+        <h3>Two-Factor Authentication</h3>
+        <input type="text" id="two-factor-token" placeholder="Enter 2FA Token">
+        <button id="verify-2fa-btn">Verify</button>
+    </div>
+
+    <script>
+        let token = localStorage.getItem('token');
+        let isLoggedIn = !!token;
+        let accountBalance = 0;
+        let ws;
+        let chart;
+        let candleSeries;
+
+        function connectWebSocket() {
+            ws = new WebSocket('wss://localhost:3000');
+
+            ws.onopen = () => {
+                console.log('WebSocket connected');
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                switch (data.type) {
+                    case 'marketUpdate':
+                        updateMarketData(data);
+                        break;
+                    case 'newOrder':
+                        updateOrderBook(data.order);
+                        break;
+                    case 'initialData':
+                        initializeOrderBook(data.orders);
+                        break;
+                    case 'trade':
+                        updateTrade(data);
+                        break;
+                }
+            };
+
+            ws.onclose = () => {
+                console.log('WebSocket disconnected');
+                setTimeout(connectWebSocket, 5000);
+            };
+        }
+
+        connectWebSocket();
+
+        function updateMarketData(data) {
+            document.getElementById('last-price').textContent = `$${data.price.toFixed(2)}`;
+            document.getElementById('24h-volume').textContent = `${data.volume.toFixed(2)} BTC`;
+            // Update other market data as needed
+            updateChart(data);
+        }
+
+        function updateOrderBook(order) {
+            const side = order.side === 'buy' ? 'bids' : 'asks';
+            const orderBookSide = document.getElementById(side);
+            const orderItem = document.createElement('div');
+            orderItem.className = 'order-book-item';
+            orderItem.innerHTML = `
+                <span>${order.price.toFixed(2)}</span>
+                <span>${order.amount.toFixed(8)}</span>
+                <div class="order-book-item-fill" style="width: ${(order.amount / getMaxAmount(side) * 100)}%"></div>
+            `;
+            orderBookSide.appendChild(orderItem);
+            sortOrderBook(side);
+        }
+
+        function initializeOrderBook(orders) {
+            const bids = document.getElementById('bids');
+            const asks = document.getElementById('asks');
+            bids.innerHTML = '';
+            asks.innerHTML = '';
+            orders.forEach(order => updateOrderBook(order));
+        }
+
+        function sortOrderBook(side) {
+            const orderBookSide = document.getElementById(side);
+            const items = Array.from(orderBookSide.children);
+            items.sort((a, b) => {
+                const priceA = parseFloat(a.children[0].textContent);
+                const priceB = parseFloat(b.children[0].textContent);
+                return side === 'bids' ? priceB - priceA : priceA - priceB;
+            });
+            items.forEach(item => orderBookSide.appendChild(item));
+        }
+
+        function getMaxAmount(side) {
+            const orderBookSide = document.getElementById(side);
+            const amounts = Array.from(orderBookSide.children).map(item => parseFloat(item.children[1].textContent));
+            return Math.max(...amounts);
+        }
+
+        function updateTrade(data) {
+            // Update the trade history or any other relevant UI elements
+            console.log('Trade executed:', data);
+            fetchUserInfo(); // Update account balance after trade
+        }
+
+        document.getElementById('login-btn').addEventListener('click', () => {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            fetch('/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.requireTwoFactor) {
+                    document.getElementById('auth-form').style.display = 'none';
+                    document.getElementById('two-factor-form').style.display = 'block';
+                    localStorage.setItem('tempUserId', data.userId);
+                } else if (data.auth) {
+                    handleSuccessfulLogin(data.token);
+                } else {
+                    alert('Login failed');
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        });
+
+        document.getElementById('verify-2fa-btn').addEventListener('click', () => {
+            const userId = localStorage.getItem('tempUserId');
+            const twoFactorToken = document.getElementById('two-factor-token').value;
+
+            fetch('/verify-2fa', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId, token: twoFactorToken })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.auth) {
+                    handleSuccessfulLogin(data.token);
+                } else {
+                    alert('2FA verification failed');
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        });
+
+        function handleSuccessfulLogin(token) {
+            localStorage.setItem('token', token);
+            isLoggedIn = true;
+            document.getElementById('auth-form').style.display = 'none';
+            document.getElementById('two-factor-form').style.display = 'none';
+            fetchUserInfo();
+        }
+
+        document.getElementById('register-btn').addEventListener('click', () => {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const email = prompt('Please enter your email:');
+
+            fetch('/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password, email })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.auth) {
+                    handleSuccessfulLogin(data.token);
+                } else {
+                    alert('Registration failed');
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        });
+
+        function fetchUserInfo() {
+            fetch('/user', {
+                headers: { 'Authorization': token }
+            })
+            .then(response => response.json())
+            .then(data => {
+                accountBalance = data.balance;
+                updateAccountInfo();
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        function updateAccountInfo() {
+            document.getElementById('account-balance').textContent = `$${accountBalance.toFixed(2)}`;
+        }
+
+        // Initialize chart
+        chart = LightweightCharts.createChart(document.getElementById('chart'), {
+            width: 600,
+            height: 300,
+            layout: {
+                background: { type: 'solid', color: '#1E1E1E' },
+                textColor: '#d1d4dc',
+            },
+            grid: {
+                vertLines: { color: '#2B2B43' },
+                horzLines: { color: '#363C4E' },
+            },
+            crosshair: {
+                mode: LightweightCharts.CrosshairMode.Normal,
+            },
+            rightPriceScale: {
+                borderColor: '#485c7b',
+            },
+            timeScale: {
+                borderColor: '#485c7b',
+            },
+        });
+
+        candleSeries = chart.addCandlestickSeries({
+            upColor: '#4bffb5',
+            downColor: '#ff4976',
+            borderDownColor: '#ff4976',
+            borderUpColor: '#4bffb5',
+            wickDownColor: '#838ca1',
+            wickUpColor: '#838ca1',
+        });
+
+        // Add SMA indicator
+        const smaLine = chart.addLineSeries({
+            color: 'rgba(4, 111, 232, 1)',
+            lineWidth: 2,
+        });
+
+        // Fetch historical data and update chart
+        fetch('/historical-data')
+            .then(response => response.json())
+            .then(data => {
+                candleSeries.setData(data);
+                
+                // Calculate and set SMA data
+                const smaData = SMA.calculate({period : 14, values : data.map(d => d.close)});
+                smaLine.setData(smaData.map((value, index) => ({
+                    time: data[index + 13].time,
+                    value: value
+                })));
+            })
+            .catch(error => console.error('Error:', error));
+
+        function updateChart(data) {
+            const lastCandle = candleSeries.lastValue();
+            if (lastCandle) {
+                if (data.time > lastCandle.time) {
+                    candleSeries.update({
+                        time: data.time,
+                        open: lastCandle.close,
+                        high: Math.max(lastCandle.close, data.price),
+                        low: Math.min(lastCandle.close, data.price),
+                        close: data.price
+                    });
+                } else {
+                    candleSeries.update({
+                        time: lastCandle.time,
+                        high: Math.max(lastCandle.high, data.price),
+                        low: Math.min(lastCandle.low, data.price),
+                        close: data.price
+                    });
+                }
+            }
+        }
+
+        // Buy/Sell functionality
+        document.getElementById('buy-btn').addEventListener('click', () => {
+            if (!isLoggedIn) {
+                alert('Please log in to trade.');
+                return;
+            }
+            const amount = parseFloat(document.getElementById('amount').value);
+            const price = parseFloat(document.getElementById('price').value);
+            const type = document.getElementById('order-type').value;
+            if (amount && price) {
+                placeOrder('buy', type, amount, price);
+            }
+        });
+
+        document.getElementById('sell-btn').addEventListener('click', () => {
+            if (!isLoggedIn) {
+                alert('Please log in to trade.');
+                return;
+            }
+            const amount = parseFloat(document.getElementById('amount').value);
+            const price = parseFloat(document.getElementById('price').value);
+            const type = document.getElementById('order-type').value;
+            if (amount && price) {
+                placeOrder('sell', type, amount, price);
+            }
+        });
+
+        function placeOrder(side, type, amount, price) {
+            const orderData = { side, type, amount, price };
+            
+            if (type === 'stop' || type === 'stop-limit') {
+                orderData.stop = parseFloat(document.getElementById('stop-price').value);
+            }
+            
+            if (type === 'stop-limit') {
+                orderData.limit = parseFloat(document.getElementById('limit-price').value);
+            }
+            
+            if (type === 'trailing-stop') {
+                orderData.trailingAmount = parseFloat(document.getElementById('trailing-amount').value);
+            }
+
+            fetch('/order', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': token
+                },
+                body: JSON.stringify(orderData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(`Order placed: ${side} ${amount} BTC at $${price}`);
+                fetchUserInfo(); // Update account balance
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        // Check login status on page load
+        if (isLoggedIn) {
+            document.getElementById('auth-form').style.display = 'none';
+            fetchUserInfo();
+        }
+    </script>
+</body>
+</html>
